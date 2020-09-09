@@ -17,14 +17,18 @@ const jQuery = () => ({
   appendTo: () => ({})
 });
 
-const assert = require('assert').strict;
-const fs = require('fs')
-const lingqSubtitles = JSON.parse(fs.readFileSync('/Users/jiamingz/Desktop/Media/01/lingq.json', 'utf8'));
-const importSubtitles = parseTsv(fs.readFileSync('/Users/jiamingz/Desktop/Media/01/Terrance_House.tsv', 'utf8'));
-const mappings = createMappings(importSubtitles, lingqSubtitles);
+(function() {
+  const assert = require('assert').strict;
+  const fs = require('fs')
+  const lingqSubtitles = JSON.parse(fs.readFileSync('/Users/jiamingz/Desktop/Media/01/lingq.json', 'utf8'));
+  const importSubtitles = parseTsv(fs.readFileSync('/Users/jiamingz/Desktop/Media/01/Terrance_House.tsv', 'utf8'));
+  const mappings = createMappings(importSubtitles, lingqSubtitles);
 
-assert.equal(importSubtitles.length, mappings.flatMap(m => m.from).length);
-assert.equal(lingqSubtitles.length, mappings.map(m => m.to.length == 1 ? 1 : (m.to[1] - m.to[0])+1).reduce((a,b) => a+b, 0));
+  assert.equal(importSubtitles.length, mappings.flatMap(m => m.from).length);
+  assert.equal(lingqSubtitles.length, mappings.map(m => m.to.length == 1 ? 1 : (m.to[1] - m.to[0]) + 1).reduce((a, b) => a + b, 0));
+  assert.equal(convertToTimestamps(mappings, importSubtitles).length, lingqSubtitles.length);
+})();
+
 // SHOULD REMOVE END
 
 function extractDuration(field) {
@@ -85,20 +89,6 @@ function createMappings(importSubtitles, lingqSubtitles) {
       continue;
     }
 
-    if (importSubtitle.startsWith(lingqSubtitle)) {
-      const nextLingqSubtitle = normalize(lingqSubtitles[j + 1]);
-      if (importSubtitle === lingqSubtitle + nextLingqSubtitle) {
-        mappings.push({
-          from: [i],
-          to: [j, j + 1]
-        });
-        i++;
-        j += 2;
-        continue;
-      }
-    }
-
-
     if (lingqSubtitle.startsWith(importSubtitle)) {
       const nextImportSubtitle = normalize(
         getImportedSub(importSubtitles, i + 1)
@@ -117,7 +107,7 @@ function createMappings(importSubtitles, lingqSubtitles) {
     if (importSubtitle.startsWith(lingqSubtitle)) {
       const range = matchImportSubWithMultipleLingQSub(importSubtitle, lingqSubtitles, j);
       if (range.length === 0) {
-      debugMessageWhenNoMatch(importSubtitles, lingqSubtitles, i, j);
+        debugMessageWhenNoMatch(importSubtitles, lingqSubtitles, i, j);
         break;
       }
       mappings.push({
@@ -132,7 +122,7 @@ function createMappings(importSubtitles, lingqSubtitles) {
     debugMessageWhenNoMatch(importSubtitles, lingqSubtitles, i, j);
     break;
   }
-  console.log(`[INFO] Successfully created mappings with [i,j] = [${i},${j}]`)
+  console.log(`[INFO] Successfully created mappings for importSubtitles (size: ${importSubtitles.length}) and lingqSubtitles (size: ${lingqSubtitles.length}) with [i,j] = [${i},${j}]`)
   return mappings;
 }
 
@@ -153,11 +143,11 @@ function matchImportSubWithMultipleLingQSub(importSubtitle, lingqSubtitles, star
 }
 
 function debugMessageWhenNoMatch(importSubtitles, lingqSubtitles, i, j) {
-    console.log(`[WARNING] No match:  [i,j] = [${i},${j}]`);
-    console.log(importSubtitles[i].subtitle);
-    console.log(lingqSubtitles[j]);
-    console.log(lingqSubtitles[j + 1]);
-    console.log(lingqSubtitles[j + 2]);
+  console.log(`[WARNING] No match:  [i,j] = [${i},${j}]`);
+  console.log(importSubtitles[i].subtitle);
+  console.log(lingqSubtitles[j]);
+  console.log(lingqSubtitles[j + 1]);
+  console.log(lingqSubtitles[j + 2]);
 }
 
 function normalize(text) {
@@ -167,6 +157,56 @@ function normalize(text) {
 function getImportedSub(subtitles, i) {
   const sub = subtitles[i].subtitle;
   return sub ? sub : "～～～";
+}
+
+function convertToTimestamps(mappings, importSubtitles) {
+  const timestamps = [];
+  let curr = 0;
+
+  mappings.forEach((mapping) => {
+    const interval = 0;
+    const from = mapping.from;
+    const to = mapping.to;
+
+    if (!from || !to) {
+      debugger;
+      return;
+    }
+
+    // #1: [i]     => [j]
+    // #2: [i]     => [j_start, j_end]
+    // #3: [i,i+1] => [j]
+    if (from.length === 1 && to.length === 1) {
+      const importSubtitle = importSubtitles[from[0]];
+      const duration = importSubtitle.duration;
+      timestamps.push(curr);
+      curr += duration + interval;
+      return;
+    }
+    if (from.length === 1 && to.length > 1) {
+      const importSubtitle = importSubtitles[from[0]];
+      const duration = importSubtitle.duration;
+
+      const [startIdx, endIdx] = to;
+      const avgDuration = duration / (endIdx - startIdx + 1);
+      for (let i = startIdx; i <= endIdx; i++) {
+        timestamps.push(curr + avgDuration * (i - startIdx));
+      }
+      curr += duration + interval;
+      return;
+    }
+
+    if (from.length === 2 && to.length === 1) {
+      timestamps.push(curr);
+      curr +=
+        importSubtitles[from[0]].duration +
+        interval +
+        importSubtitles[from[1]].duration +
+        interval;
+      return;
+    }
+  });
+  return timestamps;
 }
 
 
@@ -182,55 +222,9 @@ function getImportedSub(subtitles, i) {
     });
   }
 
-
-
   function processText(importSubtitles, lingqSubtitles) {
     const mappings = createMappings(importSubtitles, lingqSubtitles);
-
-    const timestamps = [];
-    let curr = 0;
-
-    mappings.forEach((mapping) => {
-      const interval = 0;
-      const from = mapping.from;
-      const to = mapping.to;
-
-      if (!from || !to) {
-        debugger;
-        return;
-      }
-
-      // #1: [i]     => [j]
-      // #2: [i]     => [j, j+1]
-      // #3: [i,i+1] => [j]
-      if (from.length === 1 && to.length === 1) {
-        const importSubtitle = importSubtitles[from[0]];
-        const duration = importSubtitle.duration;
-        timestamps.push(curr);
-        curr += duration + interval;
-        return;
-      }
-      if (from.length === 1 && to.length === 2) {
-        const importSubtitle = importSubtitles[from[0]];
-        const duration = importSubtitle.duration;
-        timestamps.push(curr);
-        timestamps.push(curr + duration / 2);
-        curr += duration + interval;
-        return;
-      }
-
-      if (from.length === 2 && to.length === 1) {
-        timestamps.push(curr);
-        curr +=
-          importSubtitles[from[0]].duration +
-          interval +
-          importSubtitles[from[1]].duration +
-          interval;
-        return;
-      }
-
-      debugger;
-    });
+    const timestamps = convertToTimestamps(mappings, importSubtitles);
 
     //[importSubtitles,lingqSubtitles]=window.subtitles
     window.subtitles = [importSubtitles, lingqSubtitles];
@@ -269,4 +263,33 @@ function getImportedSub(subtitles, i) {
     reader.readAsText(this.files[0]);
   });
   fileInput.appendTo(jQuery("#content-header"));
+
+  // ========================================================
+  // UI Change
+  // ========================================================
+
+  const styleTag = jQuery(`<style>
+    button.play-pause {
+      margin-left: 15px;
+      margin-right: -15px;
+      font-size: 12px;
+      height: 23px;
+    }
+    li.clip  div.row:first-child {
+      display: flex;
+    }
+    </style>`)
+  jQuery('html > head').append(styleTag);
+
+  // Make audio
+  function makeAudioTag(audioId, srcUrl, startTime, endTime) {
+    return jQuery("<audio>")
+      .attr({
+        id: audioId,
+        src: `${srcUrl}#t=${startTime},${endTime}`,
+        preload: "auto"
+      });
+  }
+
+  const audioTag = makeAudioTag("audio-i", "https://s3.amazonaws.com/media.lingq.com/resources/contents/audio/01.d1b9e9d1b2e5.mp3", "00:10", "00:15");
 })(jQuery, _);
