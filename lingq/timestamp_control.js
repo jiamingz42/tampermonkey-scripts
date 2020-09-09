@@ -24,6 +24,7 @@ function jQuery() {
 
 (function() {
   const assert = require('assert').strict;
+
   assert.equal(convertTimeStrToMilliseconds("00:00.1"), 100);
   assert.equal(convertTimeStrToMilliseconds("00:00.100"), 100);
   assert.equal(convertTimeStrToMilliseconds("00:00.1234"), 123);
@@ -40,7 +41,7 @@ function jQuery() {
 // Example: timeString: "00:01", "00:01.02"
 function convertTimeStrToMilliseconds(timeString) {
   const [minutesString, secondsString] = timeString.split(":");
-  return parseInt(minutesString) * 60 + parseFloat(secondsString) * 1000;
+  return parseInt(minutesString) * 60 * 1000 + Math.round(parseFloat(secondsString) * 1000);
 }
 
 function convertTimeFloatToStr(totalSeconds) {
@@ -57,10 +58,10 @@ function convertTimeFloatToStr(totalSeconds) {
 }
 
 function adjustTimestamp(currTimestampStr, adjustSeconds) {
-  const adjustMilliseconds = Math.round(adjustSeconds);
-  const currTimestamp = convertTimeStrToMilliseconds(currTimestampStr);
-  const newTimestamp = Math.max(0, currTimestamp + adjustSeconds);
-  return convertTimeFloatToStr(newTimestamp);
+  const adjustMilliseconds = Math.round(adjustSeconds * 1000);
+  const currMilliseconds = convertTimeStrToMilliseconds(currTimestampStr);
+  const newMilliseconds = Math.max(0, currMilliseconds + adjustMilliseconds);
+  return convertTimeFloatToStr(newMilliseconds / 1000);
 }
 
 
@@ -126,7 +127,7 @@ function adjustTimestamp(currTimestampStr, adjustSeconds) {
     const target = event.target;
     const adjustSeconds = jQuery(target).data("adjust-time");
     const timestampInput = findTimestampFromButton(target);
-    timestampInput.val(convertTimeFloatToStr(timestampInput.val(), adjustSeconds));
+    timestampInput.val(adjustTimestamp(timestampInput.val(), adjustSeconds));
   });
 
 })(jQuery, _);
