@@ -65,7 +65,6 @@ function adjustTimestamp(currTimestampStr, adjustSeconds) {
   return convertTimeFloatToStr(newMilliseconds / 1000);
 }
 
-
 (function(jQuery, _) {
   'use strict';
 
@@ -78,6 +77,11 @@ function adjustTimestamp(currTimestampStr, adjustSeconds) {
     button.timestamp-control:first-child {
       margin-left: 15px;
     }
+    .sticky {
+      position: fixed;
+      top: 0;
+      background-color: white;
+    }
     </style>`)
   jQuery('html > head').append(styleTag);
   jQuery("<div style='margin-top:5px'></div>")
@@ -89,6 +93,8 @@ function adjustTimestamp(currTimestampStr, adjustSeconds) {
     .append(makeButton("+0.1").attr("class", "timestamp-control adjust-time").data("adjust-time", +0.1))
     .append(makeButton("+0.5").attr("class", "timestamp-control adjust-time").data("adjust-time", +0.5))
     .append(makeButton("+2").attr("class", "timestamp-control adjust-time").data("adjust-time", +2))
+    .append(makeButton("<<< 2").attr("class", "timestamp-control shift-time").data("shift-time", -2))
+    .append(makeButton(">>> 2").attr("class", "timestamp-control shift-time").data("shift-time", +2))
     .appendTo(jQuery("li.clip"));
 
   function makeButton(buttonText) {
@@ -108,7 +114,11 @@ function adjustTimestamp(currTimestampStr, adjustSeconds) {
         .find(".audio-form input")
         .val();
       const audioBaseUrl = audio.src.split("#")[0];
-      audio.src = `${audioBaseUrl}#t=${startTimeString},${endTimeString}`;
+      if (!endTimeString || convertTimeStrToMilliseconds(startTimeString) >= convertTimeStrToMilliseconds(endTimeString)) {
+          audio.src = `${audioBaseUrl}#t=${startTimeString}`;
+      } else {
+          audio.src = `${audioBaseUrl}#t=${startTimeString},${endTimeString}`;
+      }
       audio.play();
       target.textContent = "STOP";
 
@@ -129,12 +139,46 @@ function adjustTimestamp(currTimestampStr, adjustSeconds) {
     const target = event.target;
     const adjustSeconds = jQuery(target).data("adjust-time");
     const timestampInput = findTimestampFromButton(target);
-    timestampInput.val(adjustTimestamp(timestampInput.val(), adjustSeconds));
+    adjustAudioInputTime(timestampInput, adjustSeconds);
+  });
+
+  function adjustAudioInputTime(audioInput, adjustSeconds) {
+      audioInput.val(adjustTimestamp(audioInput.val(), adjustSeconds));
+      audioInput.keypress();
+  }
+
+  jQuery("body").on("click", "button.shift-time", function(event) {
+    const target = jQuery(event.target);
+    const adjustSeconds = target.data("shiftTime");
+
+    adjustAudioInputTime(findTimestampFromButton(target), adjustSeconds);
+
+    target
+      .closest(".clip")
+      .nextAll(".clip")
+      .find(".audio-form input")
+      .each((_, input) => {
+        adjustAudioInputTime(jQuery(input), adjustSeconds);
+      })
   });
 
   document.onkeypress = (e) => {
-    if (e.code === "keyS" && e.ctrlKey) {
+    if (e.key === "s" && e.ctrlKey && !e.shiftKey) {
       jQuery("input.save-button").click();
+    }
+    console.log(e);
+    if (e.key === "S" && e.ctrlKey) {
+      jQuery("input.save_and_open-button").click();
+    }
+  }
+
+  // Stick audio player to the top when scrolling down
+  const lessonAudio = jQuery(".lesson-audio");
+  window.onscroll = () => {
+    if (window.pageYOffset > 650) {
+      lessonAudio.addClass("sticky");
+    } else {
+      lessonAudio.removeClass("sticky");
     }
   }
 })(jQuery, _);
