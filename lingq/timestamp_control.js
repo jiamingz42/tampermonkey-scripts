@@ -25,6 +25,7 @@ function jQuery() {
 (function() {
   const assert = require('assert').strict;
 
+  assert.equal(convertTimeStrToMilliseconds("00:"), 0);
   assert.equal(convertTimeStrToMilliseconds("00:00.1"), 100);
   assert.equal(convertTimeStrToMilliseconds("00:00.100"), 100);
   assert.equal(convertTimeStrToMilliseconds("00:00.1234"), 123);
@@ -41,7 +42,7 @@ function jQuery() {
 // Example: timeString: "00:01", "00:01.02"
 function convertTimeStrToMilliseconds(timeString) {
   const [minutesString, secondsString] = timeString.split(":");
-  return parseInt(minutesString) * 60 * 1000 + Math.round(parseFloat(secondsString) * 1000);
+  return parseInt(minutesString) * 60 * 1000 + Math.round(parseFloat(secondsString === "" ? "0" : secondsString) * 1000);
 }
 
 function convertTimeFloatToStr(totalSeconds) {
@@ -82,6 +83,7 @@ function adjustTimestamp(currTimestampStr, adjustSeconds) {
   jQuery("<div style='margin-top:5px'></div>")
     .attr("class", "row")
     .append(makeButton("PLAY").attr("class", "timestamp-control play-pause-button"))
+    .append(makeButton("-2").attr("class", "timestamp-control adjust-time").data("adjust-time", -2))
     .append(makeButton("-0.5").attr("class", "timestamp-control adjust-time").data("adjust-time", -0.5))
     .append(makeButton("-0.1").attr("class", "timestamp-control adjust-time").data("adjust-time", -0.1))
     .append(makeButton("+0.1").attr("class", "timestamp-control adjust-time").data("adjust-time", +0.1))
@@ -130,4 +132,9 @@ function adjustTimestamp(currTimestampStr, adjustSeconds) {
     timestampInput.val(adjustTimestamp(timestampInput.val(), adjustSeconds));
   });
 
+  document.onkeypress = (e) => {
+    if (e.code === "keyS" && e.ctrlKey) {
+      jQuery("input.save-button").click();
+    }
+  }
 })(jQuery, _);
